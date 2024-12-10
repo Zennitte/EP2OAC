@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
-#include <time.h>
+#include <windows.h>
 
 // === Estruturas Globais ===
 typedef struct
@@ -26,6 +26,13 @@ typedef struct
 } ArgumentosClassificacao;
 
 // === Funções Matemáticas Auxiliares ===
+
+double get_time_in_seconds() {
+    LARGE_INTEGER frequency, start;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&start);
+    return (double)start.QuadPart / frequency.QuadPart;
+}
 
 float quadrado(float num)
 {
@@ -155,11 +162,11 @@ void ler_matriz_teste_arquivo(const char *nome_arquivo, float ***matriz, int *li
     free(vetor);
 }
 
-void inicializar_vetor(float *vetor, float **matriz, int linhas, int colunas)
+void inicializar_vetor(float *vetor, float **matriz, int linhas, int colunas, int h)
 {
-    for (int i = 1; i < linhas; i++) // Começa da segunda linha (índice 1)
+    for (int i = h; i < linhas; i++) // Começa da segunda linha (índice 1)
     {
-        vetor[i - 1] = matriz[i][colunas - 1]; // Preenche o vetor com o valor da última coluna
+        vetor[i - h] = matriz[i][colunas - 1]; // Preenche o vetor com o valor da última coluna
     }
 }
 
@@ -235,7 +242,7 @@ void classificar_knn_sequencial(ArgumentosClassificacao *dados)
 
 int main(int argc, char *argv[])
 {
-    if (argc != 4)
+    if (argc != 6)
     {
         fprintf(stderr, "Uso: %s <arquivo_xtreino> <arquivo_xteste> <colunas>\n", argv[0]);
         return EXIT_FAILURE;
@@ -244,6 +251,8 @@ int main(int argc, char *argv[])
     const char *arquivo_xtreino = argv[1];
     const char *arquivo_xteste = argv[2];
     int colunas = atoi(argv[3]);
+    int k = atoi(argv[4]);
+    int h = atoi(argv[5]);
 
     if (colunas <= 0)
     {
@@ -264,20 +273,19 @@ int main(int argc, char *argv[])
     float **matriz_distancias = alocar_matriz(linhas_teste, linhas_treino);
     float *classificacoes = (float *)malloc(linhas_teste * sizeof(float));
 
-    inicializar_vetor(ytreino, xtreino, linhas_treino, colunas);
+    inicializar_vetor(ytreino, xtreino, linhas_treino, colunas, h);
 
-    clock_t inicio = clock();
+    double inicio = get_time_in_seconds();
 
     // Calculando as distâncias sequencialmente
     ArgumentosDistancia argumentos_distancias = {xtreino, xteste, matriz_distancias, linhas_treino, linhas_teste, colunas};
     calcular_distancias_sequencial(&argumentos_distancias);
 
     // Classificando sequencialmente
-    int k = 5;
     ArgumentosClassificacao argumentos_classificacao = {matriz_distancias, ytreino, classificacoes, linhas_treino, linhas_teste, k};
     classificar_knn_sequencial(&argumentos_classificacao);
 
-    clock_t fim = clock();
+    double fim = get_time_in_seconds();
 
     FILE *arquivo_ytreino = fopen("ytreino.txt", "w");
     if (arquivo_ytreino == NULL)
@@ -305,7 +313,7 @@ int main(int argc, char *argv[])
         fprintf(arquivo, "Classe estimada para a linha %d de xteste: %f\n", i + 1, classificacoes[i]);
     }
 
-    fprintf(arquivo, "Tempo de Execução: %f segundos", (double)(fim - inicio) / CLOCKS_PER_SEC);
+    fprintf(arquivo, "Tempo de Execução: %f segundos", (double)(fim - inicio));
 
     fclose(arquivo);
 
