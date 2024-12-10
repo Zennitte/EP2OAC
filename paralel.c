@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <omp.h>
+#include <time.h>
 
 // === Estruturas Globais ===
 typedef struct
@@ -165,6 +167,7 @@ void inicializar_vetor(float *vetor, float **matriz, int linhas, int colunas)
 
 void calcular_distancias_sequencial(ArgumentosDistancia *dados)
 {
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i < dados->linhas_teste; i++)
     {
         for (int j = 0; j < dados->linhas_treino; j++)
@@ -212,6 +215,7 @@ int *encontrar_menores_posicoes(float *vetor_distancias, int tamanho, int k)
 
 void classificar_knn_sequencial(ArgumentosClassificacao *dados)
 {
+    #pragma omp parallel for
     for (int i = 0; i < dados->linhas_teste; i++)
     {
         int *menores = encontrar_menores_posicoes(dados->matriz_distancias[i], dados->linhas_treino, dados->k);
@@ -262,6 +266,8 @@ int main(int argc, char *argv[])
 
     inicializar_vetor(ytreino, xtreino, linhas_treino, colunas);
 
+    clock_t inicio = clock();
+
     // Calculando as distâncias sequencialmente
     ArgumentosDistancia argumentos_distancias = {xtreino, xteste, matriz_distancias, linhas_treino, linhas_teste, colunas};
     calcular_distancias_sequencial(&argumentos_distancias);
@@ -270,6 +276,8 @@ int main(int argc, char *argv[])
     int k = 5;
     ArgumentosClassificacao argumentos_classificacao = {matriz_distancias, ytreino, classificacoes, linhas_treino, linhas_teste, k};
     classificar_knn_sequencial(&argumentos_classificacao);
+
+    clock_t fim = clock();
 
     FILE *arquivo_ytreino = fopen("ytreino.txt", "w");
     if (arquivo_ytreino == NULL)
@@ -296,6 +304,10 @@ int main(int argc, char *argv[])
     {
         fprintf(arquivo, "Classe estimada para a linha %d de xteste: %f\n", i + 1, classificacoes[i]);
     }
+
+    fprintf(arquivo, "Tempo de Execução: %f segundos", (double)(fim - inicio) / CLOCKS_PER_SEC);
+
+    fclose(arquivo);
 
     // Liberando memória
     liberar_matriz(xtreino, linhas_treino);
